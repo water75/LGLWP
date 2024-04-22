@@ -24,15 +24,15 @@ import networkx as nx
 
 
 for i in range(10):
-    data = pd.read_csv('data_sea/condmat/condmat.csv')
+    data = pd.read_csv('data_sea/neural/neural.csv')
     # test
     samdata = data.sample(frac=0.1)
     # others for train
     # data2 = data.append(samdata)
     data2 = pd.concat([data, samdata])
     data2 = data2.drop_duplicates(keep=False)
-    samdata.to_csv('data_sea/condmat/condmatsam'+str(i)+'.csv', index=False)
-    data2.to_csv('data_sea/condmat/condmat2'+str(i), sep='\t', index=False, header=False)
+    samdata.to_csv('data_sea/neural/neuralsam'+str(i)+'.csv', index=False)
+    data2.to_csv('data_sea/neural/neural2'+str(i), sep='\t', index=False, header=False)
     # data2.to_csv('data_sea/ucsocial/ucsocial_numpy'+str(i)+'.csv', index=False)
 
 

@@ -113,116 +113,10 @@ def links2subgraphs(G, A, train_pos, test_pos, Matrix):
     print('Enclosing subgraph extraction over...')
     return train_graphs, test_graphs, max_n_label['value']
 
-def parallel_worker(x):
-    return subgraph_extraction_labeling(*x)
-    
 def subgraph_extraction_labeling(G, ind, A):
     g, subgraph_matrix = get_subgraph(G, A, ind[0], ind[1], False, 10)
 
     return g, subgraph_matrix
-
-
-def neighbors(fringe, A):
-    # find all 1-hop neighbors of nodes in fringe from A
-    res = set()
-    for node in fringe:
-        nei, _, _ = ssp.find(A[:, node])
-        nei = set(nei)
-        res = res.union(nei)
-    return res
-
-def node_label(subgraph):
-    # an implementation of the proposed double-radius node labeling (DRNL)
-    K = subgraph.shape[0]
-    subgraph_wo0 = subgraph[1:, 1:]
-    subgraph_wo1 = subgraph[[0]+list(range(2, K)), :][:, [0]+list(range(2, K))]
-    dist_to_0 = ssp.csgraph.shortest_path(subgraph_wo0, directed=False, unweighted=True)
-    dist_to_0 = dist_to_0[1:, 0]
-    dist_to_1 = ssp.csgraph.shortest_path(subgraph_wo1, directed=False, unweighted=True)
-    dist_to_1 = dist_to_1[1:, 0]
-    d = (dist_to_0 + dist_to_1).astype(int)
-    d_over_2, d_mod_2 = np.divmod(d, 2)
-    labels = 1 + np.minimum(dist_to_0, dist_to_1).astype(int) + d_over_2 * (d_over_2 + d_mod_2 - 1)
-    labels = np.concatenate((np.array([1, 1]), labels))
-    labels[np.isinf(labels)] = 0
-    labels[labels>1e6] = 0  # set inf labels to 0
-    labels[labels<-1e6] = 0  # set -inf labels to 0
-    return labels
-
-def AA(A, test_pos, test_neg):
-    # Adamic-Adar score
-    A_ = A / np.log(A.sum(axis=1))
-    A_[np.isnan(A_)] = 0
-    A_[np.isinf(A_)] = 0
-    sim = A.dot(A_)
-    return CalcAUC(sim, test_pos, test_neg)
-    
-        
-def CN(A, test_pos, test_neg):
-    # Common Neighbor score
-    sim = A.dot(A)
-    return CalcAUC(sim, test_pos, test_neg)
-
-
-def CalcAUC(sim, test_pos, test_neg):
-    pos_scores = np.asarray(sim[test_pos[0], test_pos[1]]).squeeze()
-    neg_scores = np.asarray(sim[test_neg[0], test_neg[1]]).squeeze()
-    scores = np.concatenate([pos_scores, neg_scores])
-    labels = np.hstack([np.ones(len(pos_scores)), np.zeros(len(neg_scores))])
-    fpr, tpr, _ = metrics.roc_curve(labels, scores, pos_label=1)
-    auc = metrics.auc(fpr, tpr)
-    return auc
-
-def single_line(batch_graphs):
-    pbar = tqdm(batch_graphs, unit='iteration')
-    graphs = []
-    for graph in pbar:
-        #line_graph, labels = to_line(graph, graph.node_tags)
-        line_test(graph, graph.node_tags)
-        #graphs.append(line_graph)
-    return graphs
-
-def gnn_to_line(batch_graph, max_n_label):
-    start = time.time()
-    pool = mp.Pool(16)
-    #pool = mp.Pool(mp.cpu_count())
-    results = pool.map_async(parallel_line_worker, [(graph, max_n_label) for graph in batch_graph])
-    remaining = results._number_left
-    pbar = tqdm(total=remaining)
-    while True:
-        pbar.update(remaining - results._number_left)
-        if results.ready(): break
-        remaining = results._number_left
-        time.sleep(1)
-    results = results.get()
-    pool.close()
-    pbar.close()
-    g_list = [g for g in results]
-    return g_list
-
-def parallel_line_worker(x):
-    return to_line(*x)
-
-def to_line(graph, max_n_label):
-    edges = graph.edge_pairs
-    edge_feas = edge_fea(graph, max_n_label)/2
-    edges, feas = to_undirect(edges, edge_feas)
-    edges = torch.tensor(edges)
-    data = Data(edge_index=edges, edge_attr=feas)
-    data.num_nodes = graph.num_nodes
-    data = LineGraph()(data)
-    data.num_nodes = graph.num_edges
-    data['y'] = torch.tensor([graph.label])
-    return data
-
-def to_edgepairs(graph):
-    x, y = zip(*graph.edges())
-    num_edges = len(x)
-    edge_pairs = np.ndarray(shape=(num_edges, 2), dtype=np.int32)
-    edge_pairs[:, 0] = x
-    edge_pairs[:, 1] = y
-    edge_pairs = edge_pairs.flatten()
-    return edge_pairs
 
 def to_linegraphs(batch_graphs, max_n_label):
     graphs = []
@@ -274,22 +168,6 @@ def edge_fea(graph, max_n_label):
 
     return node_tag
 
-def edge_fea2(labels, edges):
-    feas = []
-    for i in range(edges.shape[1]):
-        fea = [labels[edges[0][i]], labels[edges[1][i]]]
-        fea.sort()
-        feas.append(fea)
-    feas = np.reshape(feas, [-1, 2])
-    feas = np.array([feas[:,0], feas[:,1]], dtype=np.float32)
-    return torch.tensor(feas/2)
-    
-def to_undirect2(edges):
-    edges = np.reshape(edges, (-1,2 ))
-    sr = np.array([edges[:,0], edges[:,1]], dtype=np.int64)
-    rs = np.array([edges[:,1], edges[:,0]], dtype=np.int64)
-    target_edge = np.array([[0,1],[1,0]])
-    return np.concatenate([target_edge, sr, rs], axis=1)
     
 def to_undirect(edges, edge_fea):
     edges = np.reshape(edges, (-1, 2))
@@ -308,17 +186,4 @@ def to_undirect(edges, edge_fea):
     return np.concatenate([sr, rs], axis=1), fea_body
 
 
-def line_test(graph, label):
-    edges = graph.edge_pairs
-    edges= to_undirect2(edges)
-    feas = edge_fea2(label, edges)
-    data = Data(edge_index=torch.tensor(edges), edge_attr=feas.T)
-    data = LineGraph()(data)
-    elist = data['edge_index'].numpy()
-    #elist = [(elist[0][i], elist[1][i]) for i in range(len(elist[0]))]
-    #nx_graph = nx.Graph()
-    #nx_graph.add_edges_from(elist)
-    #return nx_graph, data['x'].numpy()
-    #return nx
-    
 

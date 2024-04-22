@@ -57,8 +57,8 @@ allresults = []
 allcorrs = []
 # + str(number)
 for m in range(10):
-    Matrix, Adj, Node, train_pos = dataset.Read_graph('data_sea/netscience/netscience2' + str(m), 575)
-    samdata = pd.read_csv('data_sea/netscience/netsciencesam' + str(m) + '.csv')
+    Matrix, Adj, Node, train_pos = dataset.Read_graph('data_sea/neural/neural2' + str(m), 296)
+    samdata = pd.read_csv('data_sea/neural/neuralsam' + str(m) + '.csv')
     adj_mat = Adj.clone()
     for e in samdata.iloc[:, :-1].values:
         adj_mat[e[0], e[1]] = 1
@@ -133,33 +133,8 @@ for m in range(10):
     for epoch in range(cmd_args.num_epochs):
         classifier.train()
         avg_loss = loop_dataset_gem(classifier, train_loader, optimizer=optimizer)
-        # if not cmd_args.printAUC:
-        #     avg_loss[2] = 0.0
         print(('\033[92m第%d个 average training of epoch %d: loss %.5f \033[0m' % (m+1, epoch, avg_loss)))
         all_loss.append(avg_loss)
         classifier.eval()
         test_loss = loop_dataset_gem(classifier, test_loader, None)
         all_test_loss.append(test_loss)
-    print(all_loss)
-    plt.plot(range(0, cmd_args.num_epochs), all_loss, marker='o')
-    plt.xlabel('X-axis')
-    plt.ylabel('Y-axis')
-    plt.title('train')
-    plt.show()
-    print(all_test_loss)
-    plt.plot(range(0, cmd_args.num_epochs), all_test_loss, marker='o')
-    plt.xlabel('X-axis')
-    plt.ylabel('Y-axis')
-    plt.title('test')
-    plt.show()
-    allresults.append(test_loss)
-print('mean='+str(np.mean(allresults))+', std=' + str(np.std(allresults)))
-print(allresults)
-# total.append(np.mean(allresults))
-# 这是划分不同
-# print(total)
-# plt.plot(range(7), total, marker='o')
-# plt.xlabel('X-axis')
-# plt.ylabel('Y-axis')
-# plt.title('test')
-# plt.show()
